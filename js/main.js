@@ -176,7 +176,7 @@ const tile_types = {
     lava: {
         name: "Lava (source)",
         default_temperature: 700,
-        color: "#886644",
+        color: "#d66b00",
         tick_function: tick_lava_source,
         can_be_water: true,
         can_be_lava: false
@@ -184,7 +184,7 @@ const tile_types = {
     lava_flow: {
         name: "Lava (flow)",
         default_temperature: 700,
-        color: "#775533",
+        color: "#b55b00",
         tick_function: tick_lava_flow,
         can_be_water: true,
         can_be_lava: false
