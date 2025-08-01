@@ -292,7 +292,7 @@ function render_tiles_and_ui(tiles, simdimensions) {
             tile_element.addEventListener("mouseover", () => {
                 if (changing_tile) {
                     tiles[tile_index] = new Tile(active_cursor_type);
-                    tick(tiles, simdimensions);
+                    render_tiles_and_ui(tiles, simdimensions);
                     return;
                 }
 
@@ -316,7 +316,7 @@ function render_tiles_and_ui(tiles, simdimensions) {
 
             tile_element.addEventListener("mousedown", () => {
                 tiles[tile_index] = new Tile(active_cursor_type);
-                tick(tiles, simdimensions);
+                render_tiles_and_ui(tiles, simdimensions);
             })
 
             document.body.appendChild(tile_element);
