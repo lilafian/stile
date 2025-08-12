@@ -2,6 +2,9 @@ import noise from "./noisegen.js"
 
 let current_tick = 0;
 let changing_tile = false;
+let debug_mode = false;
+
+
 document.addEventListener("mousedown", () => {
     changing_tile = true;
 });
@@ -17,6 +20,7 @@ function do_water_replacement(tile, direction, flow_depth) {
         tile.spawn_tick = current_tick;
         tile.flow_direction = direction;
         tile.flow_depth = flow_depth;
+        tile.temperature = tile.type.default_temperature;
     }
 }
 
@@ -27,6 +31,7 @@ function do_lava_replacement(tile, direction, flow_depth) {
         tile.spawn_tick = current_tick;
         tile.flow_direction = direction;
         tile.flow_depth = flow_depth;
+        tile.temperature = tile.type.default_temperature;
     }
 }
 
@@ -175,7 +180,7 @@ const tile_types = {
     },
     lava: {
         name: "Lava (source)",
-        default_temperature: 700,
+        default_temperature: 1200,
         color: "#d66b00",
         tick_function: tick_lava_source,
         can_be_water: true,
@@ -183,7 +188,7 @@ const tile_types = {
     },
     lava_flow: {
         name: "Lava (flow)",
-        default_temperature: 700,
+        default_temperature: 900,
         color: "#b55b00",
         tick_function: tick_lava_flow,
         can_be_water: true,
@@ -191,7 +196,7 @@ const tile_types = {
     },
     cooled_lava: {
         name: "Lava (cooled)",
-        default_temperature: 50,
+        default_temperature: 100,
         color: "#151515",
         tick_function: tick_lava_cooled,
         can_be_water: false,
@@ -240,6 +245,7 @@ function get_tile_position(index, simdimensions) {
 }
 
 function get_tile_at_position(tiles, position, simdimensions) {
+    if (position.x >= simdimensions.x || position.y >= simdimensions.y) return null;
     const index = (position.y * simdimensions.x) + position.x;
     return tiles[index];
 }
@@ -285,9 +291,14 @@ function render_tiles_and_ui(tiles, simdimensions) {
             tile_element.style.top = `${y * 30}px`;
             tile_element.style.width = "30px";
             tile_element.style.height = "30px";
-            tile_element.style.border = "1px solid #555555";
             tile_element.style.backgroundColor = tiles[tile_index].type.color;
             tile_element.style.cursor = "pointer";
+
+            if (debug_mode) {
+                const temp = document.createElement("span");
+                temp.innerText = `${tiles[tile_index].temperature}`;
+                tile_element.appendChild(temp);
+            }
 
             tile_element.addEventListener("mouseover", () => {
                 if (changing_tile) {
@@ -296,7 +307,6 @@ function render_tiles_and_ui(tiles, simdimensions) {
                     return;
                 }
 
-                tile_element.innerHTML = "";
                 if (document.getElementById("infobox") !== null) document.getElementById("infobox").remove();
 
                 const info = document.createElement("span");
@@ -306,12 +316,16 @@ function render_tiles_and_ui(tiles, simdimensions) {
                 info.style.position = "absolute";
                 info.style.bottom = "0";
                 info.style.left = "100px";
+
+                tile_element.style.border = "1px solid black";
+                tile_element.style.zIndex = "10";
                 document.body.appendChild(info);
             });
 
             tile_element.addEventListener("mouseleave", () => {
                 if (document.getElementById("infobox") !== null) document.getElementById("infobox").remove();
-                tile_element.innerHTML = "";
+                tile_element.style.border = "none";
+                tile_element.style.zIndex = "";
             })
 
             tile_element.addEventListener("mousedown", () => {
@@ -381,6 +395,48 @@ function generate_tiles(tiles, simdimensions) {
     }
 }
 
+function do_water_surrounding_check_replacement(tiles, tile, x, y, simdimensions) {
+    let water_surrounding = 0;
+    const surrounding_tiles_large = get_surrounding_tiles_large(tiles, x, y, simdimensions);
+    for (const new_tile of Object.values(surrounding_tiles_large)) {
+        if (new_tile == undefined || new_tile.type == tile_types.empty) continue;
+        if (new_tile.type == tile_types.water_source || new_tile.type == tile_types.water_flow) {
+            water_surrounding++;
+        }
+    }
+    if (water_surrounding >= 4) {
+        do_water_replacement(tile, null, null);
+    }
+}
+
+function do_lava_surrounding_check_replacement(tiles, tile, x, y, simdimensions) {
+    let lava_surrounding = 0;
+    const surrounding_tiles_large = get_surrounding_tiles_large(tiles, x, y, simdimensions);
+    for (const new_tile of Object.values(surrounding_tiles_large)) {
+        if (new_tile == undefined || new_tile.type == tile_types.empty) continue;
+        if (new_tile.type == tile_types.lava || new_tile.type == tile_types.lava_flow) {
+            lava_surrounding++;
+        }
+    }
+    if (lava_surrounding >= 4) {
+        do_lava_replacement(tile, null, null);
+    }
+}
+
+function do_temperature_adjustment(tiles, x, y, simdimensions) {
+    const neighbors = get_surrounding_tiles_large(tiles, x, y, simdimensions);
+    const tile_index = (y * simdimensions.x) + x;
+    const tile = tiles[tile_index];
+    let neighbor_temps = [];
+    for (const tile of Object.values(neighbors)) {
+        if (tile == null || tile == undefined) continue;
+        neighbor_temps.push(tile.temperature);
+    }
+
+    const neighbor_average_temp = neighbor_temps.reduce((a, b) => a + b, 0) / neighbor_temps.length;
+    tile.temperature += Math.round((neighbor_average_temp - tile.temperature) * 0.1);
+}
+
 function do_tile_logic(tiles, simdimensions) {
     for (let y = 0; y < simdimensions.y; y++) {
         for (let x = 0; x < simdimensions.x; x++) {
@@ -388,32 +444,9 @@ function do_tile_logic(tiles, simdimensions) {
             const tile = tiles[tile_index];
             tile.type.tick_function(tiles, tile, x, y, simdimensions);
 
-            const surrounding_tiles = get_surrounding_tiles(tiles, x, y, simdimensions);
-            let temperatures = [];
-            for (const new_tile of Object.values(surrounding_tiles)) {
-                if (new_tile == undefined || new_tile.type == tile_types.empty) continue;
-                temperatures.push(new_tile.temperature);
-            }
-            
-            temperatures.push(2 * tile.temperature);
-
-            let total = 0;
-            for (const temp of temperatures) {
-                total += temp;
-            }
-            tile.temperature = Math.floor(total / ( temperatures.length + 1 ));
-
-            let water_surrounding = 0;
-            const surrounding_tiles_large = get_surrounding_tiles_large(tiles, x, y, simdimensions);
-            for (const new_tile of Object.values(surrounding_tiles_large)) {
-                if (new_tile == undefined || new_tile.type == tile_types.empty) continue;
-                if (new_tile.type == tile_types.water_source || new_tile.type == tile_types.water_flow) {
-                    water_surrounding++;
-                }
-            }
-            if (water_surrounding >= 4) {
-                do_water_replacement(tile, null, null);
-            }
+            do_temperature_adjustment(tiles, x, y, simdimensions);
+            do_water_surrounding_check_replacement(tiles, tile, x, y, simdimensions);
+            do_lava_surrounding_check_replacement(tiles, tile, x, y, simdimensions);
         }
     }
 }
@@ -433,6 +466,9 @@ function main() {
     let tickspeed = params.get("tickspeed");
     if (width == null) width = 30;
     if (height == null) height = 30;
+    if(params.get("debug")) {
+        debug_mode = true;
+    }
 
     for (let i = 0; i < width * height; i++) {
         tiles[i] = new Tile(tile_types.empty);
