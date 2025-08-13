@@ -72,6 +72,14 @@ export const tile_types = {
         tick_function: tick_lava_cooled,
         can_be_water: false,
         can_be_lava: true
+    },
+    tree: {
+        name: "Tree",
+        default_temperature: 21,
+        color: "#315e20",
+        tick_function: () => {},
+        can_be_water: false,
+        can_be_lava: true
     }
 }
 

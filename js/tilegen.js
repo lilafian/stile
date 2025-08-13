@@ -11,8 +11,15 @@ export function generate_tiles(tiles, simdimensions) {
             const noise_threshold = -0.3;
             const noise_value = noise.perlin2(x / noise_scale, y / noise_scale);
             if (noise_value > noise_threshold) {
-                const tile = new Tile(tile_types.ground);
-                tile.insert_at_position(tiles, new Dim2(x, y), simdimensions);
+                const random = Math.random();
+                if (random > 0.05) {
+                    const tile = new Tile(tile_types.ground);
+                    tile.insert_at_position(tiles, new Dim2(x, y), simdimensions);
+                } else {
+                    const tile = new Tile(tile_types.tree);
+                    tile.insert_at_position(tiles, new Dim2(x, y), simdimensions);
+                }
+
             } else {
                 const tile = new Tile(tile_types.water_source);
                 tile.insert_at_position(tiles, new Dim2(x, y), simdimensions);
